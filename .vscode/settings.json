@@ -1,0 +1,15 @@
+{
+    "java.project.sourcePaths": [
+        "src"
+    ],
+    "java.project.outputPath": "bin",
+    "java.project.referencedLibraries": {
+        "include": [
+            "c:\\Java\\Flawless\\lib\\javafx.media.jar",
+            "c:\\Java\\Flawless\\lib\\TApplet.jar"
+        ],
+        "exclude": [
+            "c:\\javafx-sdk-24\\lib\\javafx.media.jar"
+        ]
+    }
+}
