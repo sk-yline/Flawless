@@ -8,8 +8,7 @@ public class Level{
     public ArrayList<Image> tileset = new ArrayList<>();
     public ArrayList<int[][]> tilemap = new ArrayList<>();
     public ArrayList<CollisionBox> collider = new ArrayList<>();
-    public double player_x_scale = 1.0;
-    public double player_y_scale = 1.0;
+
     public int tile_dimension = 0;
     public double true_dimension = 0;
     public Vector start_pos = new Vector(0, 0);
@@ -29,7 +28,7 @@ public class Level{
         this.width = tmr.w;
         for (CollisionBox c : collider){
             if (c.type.equals("player")){
-                Game.player = new Player(new Vector(c.pos.x, c.pos.y), new Vector(c.size.x * player_x_scale, c.size.y * player_y_scale));
+                Game.player = new Player(new Vector(c.pos.x, c.pos.y), new Vector(c.size.x, c.size.y));
                 start_pos = new Vector(c.pos.x, c.pos.y);
             }
             else if (c.type.contains("enemy")){

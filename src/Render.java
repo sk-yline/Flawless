@@ -1,6 +1,8 @@
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
@@ -32,8 +34,8 @@ public class Render{
     }
 
     public Image scale(BufferedImage img, double s){
-        int img_width = (int)(img.getWidth() / s);
-        int img_height = (int)(img.getHeight() / s);
+        int img_width = (int)Math.round(img.getWidth() * s / Game.SCALE);
+        int img_height = (int)Math.round(img.getHeight() * s / Game.SCALE);
         return img.getScaledInstance(img_width, img_height, Image.SCALE_DEFAULT);
     }
 
@@ -175,6 +177,55 @@ public class Render{
         g.drawImage(player_image, (int) (frame_pos.x -  img_center.x), (int) (frame_pos.y - img_center.y), (int)image_width, (int)image_height, null);
     }
 
+    public BufferedImage rotate_image(BufferedImage img, int angle){
+        double radians = Math.toRadians(angle);
+        /*
+        Unlike reflection, rotation will change the image dimensions
+        For some weird cases that I can't really explain, the image will be cropped if the angle is > 180 degrees
+        So we need to fit the rotated image into a new bounding box with rotated dimensions
+
+        Rotation Matrix:
+          [cos(theta) -sin(theta)]
+          [sin(theta)  cos(theta)]
+         */
+        int newWidth = (int) Math.round(Math.abs(img.getWidth() * Math.cos(radians)) + Math.abs(img.getHeight() * Math.sin(radians)));
+        int newHeight = (int) Math.round(Math.abs(img.getWidth() * Math.sin(radians)) + Math.abs(img.getHeight() * Math.cos(radians)));
+        BufferedImage rotated_img = new BufferedImage(newWidth, newHeight, img.getType());
+
+        
+        AffineTransform at = new AffineTransform();
+        /*Translate the orginal top left corner (0,0) to the top left corner after transformation
+        (i.e move the origional center to the new center)
+        Orgional Center: (img.getWidth()/2, img.getHeight()/2)
+        New Center: (newWidth/2, newHeight/2)
+        Distance between the two cetners: [newWidth/2 - img.getWidth()/2, newHeight/2 - img.getHeight()/2]
+         = [(newWidth - img.getWidth()) / 2, (newHeight - img.getHeight()) / 2]
+        */
+        at.translate((newWidth - img.getWidth()) / 2, (newHeight - img.getHeight()) / 2);
+        //Rotate the image around the center of the image
+        at.rotate(radians, img.getWidth() / 2, img.getHeight() / 2);
+        AffineTransformOp op = new AffineTransformOp(at, AffineTransformOp.TYPE_BILINEAR);
+        op.filter(img, rotated_img);
+        return rotated_img;
+    }
+
+    public void render_player_attck(boolean is_attack){
+        double offset = 20/Game.SCALE;
+        if (is_attack){
+            Vector frame_pos = Game.player.pos.to_frame(Game.camera);
+            BufferedImage attack = Game.player_attack.get(Game.player.attack_frame);
+            BufferedImage rotated_attack = rotate_image(attack, 360 - Game.player.attack_dir);
+            double height = rotated_attack.getHeight(null);
+            double width = rotated_attack.getWidth(null);
+            height = height * 2 / Game.SCALE;
+            width = width * 2 / Game.SCALE;
+            Image final_attack = scale(rotated_attack, 2);
+            Vector image_center = new Vector(frame_pos.x + offset * Math.cos(Math.toRadians(Game.player.attack_dir)), frame_pos.y + -1 * offset * Math.sin(Math.toRadians(Game.player.attack_dir)));
+            g.drawImage(final_attack, (int)Math.round(image_center.x - width/2), (int)Math.round(image_center.y - height/2), null);
+            
+        }
+    }
+
     public void update(){
         if (!Game.DEBUG){
             DrawBackground(Game.background.get(Game.current_level));
@@ -190,5 +241,6 @@ public class Render{
         }
         render_mouse();
         render_player(Game.player.state);
+        render_player_attck(Game.player.attacking);
     }
 }

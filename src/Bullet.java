@@ -70,7 +70,6 @@ public class Bullet {
                     dir += 180;
                     dir %= 360;
                     owner = "player";
-                    Game.hit_pause = Game.hit_pause_time;
                     Game.sound.get("clash").play();
                 }
             }

@@ -13,14 +13,14 @@ public class Player{
     public double max_speed_slide = 375/Game.SCALE;
     public double max_speed_y = max_speed_grav;
     public double sustained_jump_acceleration = -375/Game.SCALE;
-    public double initialJumpVelocity = -1050 / Game.SCALE;
+    public double initialJumpVelocity = -800 / Game.SCALE;
     public double accel_x = 1800/Game.SCALE;
     public double gravity = 1800/Game.SCALE;
     public double accel_y = gravity;
     public double velocity_x = 0;
     public double velocity_y = 0;
     public int direction = 1;
-    public int atk_offset = (int) (Game.GRIDSIZE*3/Game.SCALE);
+    public int atk_offset = (int) Math.round(Game.GRIDSIZE*2/Game.SCALE);
     public int hp = 1;
     public double facing = 1;
     public String state = "Idle";
@@ -55,7 +55,7 @@ public class Player{
         }
     }
 
-    private double max_jump_duration = 0.2;
+    private double max_jump_duration = 0.15;
     private double jump_duration = 0;
 
     public boolean is_grounded(){
@@ -173,9 +173,9 @@ public class Player{
 
         double dx = velocity_x * delta;
         double dy = velocity_y * delta;
-
+        CollisionBox previous_box = Game.collisionManager.collidable.get(Game.collisionManager.get_box("player"));
         //Have a bit of x offset to avoid moving into the wall and stuck at inside
-        CollisionBox new_x_collision = new CollisionBox(new Vector(pos.x + dx + direction * 1, pos.y), size, 0, "player");
+        CollisionBox new_x_collision = new CollisionBox(new Vector(pos.x + dx + direction * 1, pos.y), previous_box.size, 0, "player");
         boolean move_x = true;
         if (Game.collisionManager.is_collide(new_x_collision, "wall")){
             move_x = false;
@@ -190,7 +190,7 @@ public class Player{
         }
 
 
-        CollisionBox new_y_collision = new CollisionBox(new Vector(pos.x, pos.y + dy), size, 0, "player");
+        CollisionBox new_y_collision = new CollisionBox(new Vector(pos.x, pos.y + dy), previous_box.size, 0, "player");
         boolean move_y = true;
         if (Game.collisionManager.is_collide(new_y_collision, "wall")){
             move_y = false;
@@ -240,17 +240,22 @@ public class Player{
     boolean attacking = false;
     double attack_duration = 0;
     double attack_cd = 0;
-    final double max_attack_cd = 0.6;
-    public double attack_dir = -1;
-    double attack_vel = 1800/Game.SCALE;
+    final double max_attack_cd = 0.4;
+    public int attack_dir = -1;
+    double attack_vel = 1400/Game.SCALE;
 
     public void attack(double delta){
         if (attack_dir == -1){
             attack_dir = mouse_dir;
-            Game.rend.g.drawString(Double.toString(attack_dir), 500, 160);
-            System.out.println(attack_dir);
+            Game.rend.g.drawString(Integer.toString(attack_dir), 500, 160);
             velocity_y = attack_vel * Math.sin(Math.toRadians(attack_dir)) * -1;
             velocity_x = attack_vel * Math.cos(Math.toRadians(attack_dir));
+            if (attack_dir <= 90 || attack_dir >= 270){
+                facing = 1;
+            }
+            else{
+                facing = -1;
+            }
         }
 
         if (attack_duration <= 0){
@@ -258,6 +263,7 @@ public class Player{
             attack_cd = max_attack_cd;
             Game.collisionManager.collidable.get(Game.collisionManager.get_box("player_atk")).enable = false;
             attack_dir = -1;
+            attack_frame = 0;
             return;
         }
 
@@ -274,8 +280,9 @@ public class Player{
         }
     }
 
-    final double frame_pause = 0.05;
+    final double frame_pause = 0.1;
     double frame_pause_timer = 0;
+    public int attack_frame = 0;
     public void change_state(String s){
         int max_frame = Game.player_frame.get(s);
         if (!state.equals(s)){
@@ -307,13 +314,46 @@ public class Player{
                 }
                 frame_pause_timer = frame_pause;
             }
+            else if (state.equals("Attack")){
+                state = "Jump";
+                if (attack_duration <= 0.075){
+                    double frame_attack_pause = 0.02;
+                    attack_frame++;
+                    if (attack_frame > 4){
+                        attack_frame = 4;
+                    }
+                    frame_pause_timer = frame_attack_pause;
+                }
+                else if (attack_duration <= 0.2){
+                    double frame_attack_pause = 0.05;
+                    frame_ind++;
+                    frame_ind %= max_frame;
+                    frame_pause_timer = frame_attack_pause;
+                }
+                else if (attack_duration <= 0.3){
+                    double frame_attack_pause = 0.1;
+                    frame_ind++;
+                    frame_ind %= max_frame;
+                    frame_pause_timer = frame_attack_pause;
+                }
+                if (attack_dir <= 180){
+                    frame_ind = 0;
+                }
+                else{
+                    frame_ind = 2;
+                }
+            }
             else{
                 frame_ind++;
                 frame_ind %= max_frame;
                 frame_pause_timer = frame_pause;
             }
         }
+
+        Game.rend.g.drawString(state, 800, 100);
     }
+
+    double walk_sound_interval = 0;
 
     public void update_postion(double delta){
         //Priority: Dash > Jump > Attack > Move > Normal
@@ -327,11 +367,14 @@ public class Player{
                 attack(delta);
                 dashing = false;
                 dash_duration = 0;
+                change_state("Attack");
+                Game.sound.get("sword").play();
             }
         }
 
         if (attacking){
             attack(delta);
+            change_state("Attack");
             velocity_x *= 0.9;
             velocity_y *= 0.9;
             dashing = false;
@@ -362,7 +405,6 @@ public class Player{
             dashing = false;
             can_dash = false;
         }
-
 
         if (!dashing && ! attacking){
             //Jump
@@ -438,6 +480,7 @@ public class Player{
 
             if (on_wall()){
                 change_state("Wall");
+                facing = wall_dir;
             }
 
             //Normal gravity
@@ -454,6 +497,13 @@ public class Player{
             }
             if (Math.abs(velocity_x) > max_speed_x && !wall_j){
                 velocity_x = max_speed_x * Math.signum(velocity_x);
+            }
+
+            if (is_grounded() && velocity_x != 0){
+                if (walk_sound_interval == 0){
+                    // Game.sound.get("walk").play();
+                    walk_sound_interval = 0.15;
+                }
             }
         }
         else {
@@ -475,7 +525,13 @@ public class Player{
         if (frame_pause_timer < 0){
             frame_pause_timer = 0;
         }
-        Game.rend.g.drawString(Double.toString(coyote_time), 800, 180);
+        
+        walk_sound_interval -= delta;
+        if (walk_sound_interval < 0){
+            walk_sound_interval = 0;
+        }
+
+        Game.rend.g.drawString(Double.toString(walk_sound_interval), 500, 180);
     }
     
     public void update(double delta){

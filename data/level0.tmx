@@ -44,7 +44,7 @@
   <object id="10" x="578.5" y="305.75" width="170.75" height="174.25"/>
  </objectgroup>
  <objectgroup id="3" name="player">
-  <object id="9" x="125.333" y="312.67" width="16" height="32"/>
+  <object id="9" x="125.333" y="312.67" width="12" height="28"/>
  </objectgroup>
  <objectgroup id="4" name="enemy_2">
   <object id="11" x="642.25" y="270.917" width="16" height="32"/>

@@ -117,6 +117,7 @@ public static HashMap<String, ArrayList<Image>> player_img_reverse = new HashMap
 public static HashMap<String, Vector> player_img_center = new HashMap();
 public static HashMap<String, Vector> player_img_center_reverse = new HashMap();
 public static HashMap<String, Integer> player_frame = new HashMap();
+public static ArrayList<BufferedImage> player_attack = new ArrayList<>();
 
 public static HashMap<String, ArrayList<Image>> enemy_img = new HashMap();
 public static Image bullet_img = null;
@@ -127,6 +128,8 @@ public void intialize_sound(){
     sound.put("clash", getAudioClip(getCodeBase(), "\\audio\\clash.wav"));
     sound.put("swosh", getAudioClip(getCodeBase(), "\\audio\\swosh.wav"));
     sound.put("impact", getAudioClip(getCodeBase(), "\\audio\\impact.wav"));
+    sound.put("sword", getAudioClip(getCodeBase(), "\\audio\\sword.wav"));
+    sound.put("walk", getAudioClip(getCodeBase(), "\\audio\\walk.wav"));
 }
 
 public BufferedImage loadimg(String path){
@@ -228,6 +231,12 @@ public void initialize_pictures(){
             player_img_center_reverse.put(s, new Vector((12 - center.x)*8*3/SCALE, center.y*8*3/SCALE));
         }
     }
+
+    player_frame.put("Attack", 5);
+    for (int i = 0; i<5; i++){
+        BufferedImage img = loadimg("\\resource\\player\\Slash" + i + ".png");
+        player_attack.add(img);
+    }
 }
 
 public void init(){ 
@@ -307,12 +316,13 @@ public void init(){
 
     public void movie(Graphics g){
         // System.out.println(mousedown);
+
         update_input();
         rend.g = g;
         g.setColor(Color.black);
         g.fillRect(0, 0, WIDTH, HEIGHT);
         g.setColor(Color.white);
-        
+
         previous_time = current_time;
         current_time = System.currentTimeMillis();
         double delta = (current_time - previous_time) / 1000.0;
