@@ -226,6 +226,82 @@ public class Render{
         }
     }
 
+    //Absolutly the same logic as render_player
+    public void render_enemy_1(Enemy e){
+        String state = e.state;
+        Vector frame_pos = e.pos.to_frame(Game.camera);
+        Vector img_center;
+        Image enemy_image;
+        if (e.facing == -1){
+            img_center = Game.enemy_1_img_center_reverse.get(state);
+            enemy_image = Game.enemy_1_img_reverse.get(state).get(e.frame);
+        }
+        else{
+            img_center = Game.enemy_1_img_center.get(state);
+            enemy_image = Game.enemy_1_img.get(state).get(e.frame);
+        }
+
+        int image_height = enemy_image.getHeight(null);
+        int image_width = enemy_image.getWidth(null);
+        g.drawImage(enemy_image, (int) (frame_pos.x -  img_center.x), (int) (frame_pos.y - img_center.y), (int)image_width, (int)image_height, null);
+    }
+
+    public BufferedImage horizantal_flip(BufferedImage image){
+        AffineTransform tx = AffineTransform.getScaleInstance(-1, 1);
+        tx.translate(-image.getWidth(null), 0);
+        AffineTransformOp op = new AffineTransformOp(tx, AffineTransformOp.TYPE_NEAREST_NEIGHBOR);
+        BufferedImage new_img = op.filter(image, null);
+        return new_img;
+    }
+
+    public void render_enemy_2(Enemy e){
+        BufferedImage enemy = Game.enemy_2_img.get("Idle").get(0);
+        if (Game.player.pos.x < e.pos.x){
+            enemy = horizantal_flip(enemy);
+        }
+        BufferedImage gun = Game.enemy_2_img.get("Gun").get(0);
+        int angle = e.player_dir;
+        if (angle > 90 && angle < 270){
+            int reference_angle = Math.abs(180 - angle);
+            if (angle <= 180){
+                angle = reference_angle;
+            }
+            else{
+                angle = 360 - reference_angle;
+            }
+        }
+        angle += 45;
+        angle %= 360;
+        if (angle > 180){
+            angle -= 360;
+        }
+        gun = rotate_image(gun, 360 - angle);
+        if (Game.player.pos.x < e.pos.x){
+            gun = horizantal_flip(gun);
+        }
+
+        Image enemy_img = scale(enemy, 3);
+        Vector frame_pos = e.pos.to_frame(Game.camera);
+        Vector enemy_center = new Vector(2*8*3/Game.SCALE, 4*8*3/Game.SCALE);
+        Vector gun_center = new Vector(2*8*3/Game.SCALE, 2*8*3/Game.SCALE);
+        if (Game.player.pos.x < e.pos.x){
+            enemy_center.x = 4*8*3/Game.SCALE;
+            gun_center.x = 2*8*3/Game.SCALE;
+        }
+        Image gun_img = scale(gun, 2);
+        g.drawImage(enemy_img, (int)(frame_pos.x - enemy_center.x), (int)(frame_pos.y - enemy_center.y), enemy_img.getWidth(null), enemy_img.getHeight(null), null);
+        g.drawImage(gun_img, (int)(frame_pos.x - gun_center.x), (int)(frame_pos.y - gun_center.y), gun_img.getWidth(null), gun_img.getHeight(null), null);
+    }
+
+    public void render_bullet(Bullet b){
+        int angle = b.dir;
+        BufferedImage bullet = Game.bullet_img;
+        bullet = rotate_image(bullet, 360 - angle);
+        Image bullet_img = scale(bullet, 3);
+        Vector frame_pos = b.pos.to_frame(Game.camera);
+        g.drawImage(bullet_img, (int)Math.round(frame_pos.x - bullet_img.getWidth(null)/2), (int)Math.round(frame_pos.y - bullet_img.getHeight(null)/2), bullet_img.getWidth(null), bullet_img.getHeight(null), null);
+    }
+
     public void update(){
         if (!Game.DEBUG){
             DrawBackground(Game.background.get(Game.current_level));
@@ -242,5 +318,17 @@ public class Render{
         render_mouse();
         render_player(Game.player.state);
         render_player_attck(Game.player.attacking);
+        for (Enemy e : Game.enemies){
+            if (e.type.equals("enemy_2")){
+                render_enemy_2(e);
+            }
+            else{
+                render_enemy_1(e);
+            }
+        }
+
+        for (Bullet b : Game.bullets){
+            render_bullet(b);
+        }
     }
 }

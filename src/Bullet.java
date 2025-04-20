@@ -9,7 +9,7 @@ public class Bullet {
         this.owner = owner;
         this.pos = pos;
         this.dir = dir;
-        this.box = new CollisionBox(pos, new Vector(20, 10), dir, "bullet");
+        this.box = new CollisionBox(pos, new Vector(18, 6), dir, "bullet");
         Game.collisionManager.collidable.add(box);
     }
 

@@ -119,8 +119,14 @@ public static HashMap<String, Vector> player_img_center_reverse = new HashMap();
 public static HashMap<String, Integer> player_frame = new HashMap();
 public static ArrayList<BufferedImage> player_attack = new ArrayList<>();
 
-public static HashMap<String, ArrayList<Image>> enemy_img = new HashMap();
-public static Image bullet_img = null;
+public static HashMap<String, ArrayList<Image>> enemy_1_img = new HashMap();
+public static HashMap<String, ArrayList<Image>> enemy_1_img_reverse = new HashMap();
+public static HashMap<String, Vector> enemy_1_img_center = new HashMap();
+public static HashMap<String, Vector> enemy_1_img_center_reverse = new HashMap();
+public static HashMap<String, Integer> enemy_1_frame = new HashMap();
+public static HashMap<String, ArrayList<BufferedImage>> enemy_2_img = new HashMap();
+
+public static BufferedImage bullet_img;
 public static HashMap<String, ArrayList<Image>> effects_img = new HashMap();
 
 public void intialize_sound(){
@@ -197,7 +203,7 @@ public Image horizantal_flip(BufferedImage image, int scale){
 }
 
 public void initialize_pictures(){
-    String[] player_states = {"Dash", "Jump", "Death", "Idle", "Run", "Wall", "Land", "Hit"};
+    String[] player_states = {"Dash", "Jump", "Death", "Idle", "Run", "Wall", "Land", "Hit","DoubleJump"};
     HashMap<String, Vector> player_center = new HashMap<String, Vector>() {{
         //Player image center relative to the grid
         put("Dash", new Vector(6, 6));
@@ -205,8 +211,8 @@ public void initialize_pictures(){
         put("Death", new Vector(6, 6));
         put("Idle", new Vector(6, 6));
         put("Run", new Vector(6, 6));
-        // put("Slash", new Vector(8*6*3/SCALE, 8*6.5*3/SCALE));
         put("Land", new Vector(6, 6.5));
+        put("DoubleJump", new Vector(6, 6));
         put("Hit", new Vector(6, 6));
         put("Wall", new Vector(6, 6.5));
     }};
@@ -237,6 +243,42 @@ public void initialize_pictures(){
         BufferedImage img = loadimg("\\resource\\player\\Slash" + i + ".png");
         player_attack.add(img);
     }
+
+    String[] enemy_1_states = {"Idle", "Run", "Death", "Attack"};
+    HashMap<String, Vector> enemy_1_center = new HashMap<String, Vector>() {{
+        put("Idle", new Vector(6, 4));
+        put("Run", new Vector(7, 4));
+        put("Death", new Vector(6, 4));
+        put("Attack", new Vector(6, 4));
+    }};
+
+    for (String s : enemy_1_states){
+        enemy_1_img.put(s, new ArrayList<>());
+        enemy_1_img_reverse.put(s, new ArrayList<>());
+    }
+
+    for (String s : enemy_1_states){
+        BufferedImage img = loadimg("\\resource\\enemy_1\\" + s + ".png");
+        int frame_cnt = img.getWidth(null) / 96;
+        enemy_1_frame.put(s, frame_cnt);
+        for (int i = 0; i<frame_cnt; i++){
+            BufferedImage croped_frame = img.getSubimage(i*96, 0, 96, 64);
+            Image img_scaled = scale(croped_frame, 3);
+            enemy_1_img.get(s).add(img_scaled);
+            enemy_1_img_reverse.get(s).add(horizantal_flip(croped_frame, 3));
+            //For a sprite with 12 grid x 10 grid, the image's center of mass is at (6, 6.5);
+            Vector center = enemy_1_center.get(s);
+            enemy_1_img_center.put(s, new Vector(center.x*8*3/SCALE, center.y*8*3/SCALE));
+            enemy_1_img_center_reverse.put(s, new Vector((12 - center.x)*8*3/SCALE, center.y*8*3/SCALE));
+        }
+    }
+
+    enemy_2_img.put("Idle", new ArrayList<>());
+    enemy_2_img.put("Gun", new ArrayList<>());
+    enemy_2_img.get("Idle").add(loadimg("\\resource\\enemy_2\\Idle.png").getSubimage(0, 0, 48, 48));
+    enemy_2_img.get("Gun").add(loadimg("\\resource\\enemy_2\\Gun.png"));
+
+    bullet_img = loadimg("\\resource\\bullet\\bullet.png");
 }
 
 public void init(){ 
@@ -306,14 +348,6 @@ public void init(){
         }
     }
 
-    public void delay(int ms){
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
     public void movie(Graphics g){
         // System.out.println(mousedown);
 
@@ -331,13 +365,13 @@ public void init(){
             collisionManager.update(delta);
             camera.update(delta);
             mouse.update();
-            player.update(delta);
             for (Enemy e : enemies){
                 e.update(delta);
             }
             for (Bullet b : bullets){
                 b.update(delta);
             }
+            player.update(delta);
             remove_all();
             rend.update();
             rend.g.drawString(Integer.toString(enemies.size()), 1100, 100);
