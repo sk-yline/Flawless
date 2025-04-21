@@ -105,7 +105,7 @@ public class TileMapReader{
             br.readLine();
             line = br.readLine().trim();
             HashMap<String, String> info = decode_line(line, true);
-            if (type.equals("tileset")){
+            while (type.equals("tileset")){
                 read_tileset(basepath + "\\data\\"+ info.get("source"));
                 line = br.readLine().trim();
                 info = decode_line(line, true);

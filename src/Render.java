@@ -59,15 +59,9 @@ public class Render{
         }        
     }
 
-    public void DrawFixedBG(String path, int l, int u, int r, int b){
-        File file = new File(basepath + path);
-        Image img;
-        try {
-            img = ImageIO.read(file);
-            g.drawImage(img, 0, 0, width, height, l, u, r, b, null);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public void DrawFixedBG(Image img){
+
+        g.drawImage(img, 0, 0, width, height, null);
     }
 
     public void render_mouse(){
@@ -130,10 +124,10 @@ public class Render{
     }
 
     public void render_tilemap(){
-        ArrayList<Image> tileset = Game.levels.get(Game.current_level).tileset;
-        ArrayList<int[][]> tilemap = Game.levels.get(Game.current_level).tilemap;
-        int dimension = Game.levels.get(Game.current_level).tile_dimension;
-        double real_dimension = Game.levels.get(Game.current_level).true_dimension;
+        ArrayList<Image> tileset = Game.level.tileset;
+        ArrayList<int[][]> tilemap = Game.level.tilemap;
+        int dimension = Game.level.tile_dimension;
+        double real_dimension = Game.level.true_dimension;
 
         for (int[][] layer : tilemap){
             for (int i = 0; i < layer.length; i++){
@@ -145,10 +139,10 @@ public class Render{
                         int x_dimension = dimension;
                         int y_dimension = dimension;
                         if ((int) Math.round(pos.x + 1) - (int) Math.round(pos.x) > 0){
-                            x_dimension++;
+                            g.drawImage(tileset.get(tile_id), (int) Math.round(pos.x + 1), (int) Math.round(pos.y), x_dimension, y_dimension, null);
                         }
                         if ((int) Math.round(pos.y + 1) - (int) Math.round(pos.y) > 0){
-                            y_dimension++;
+                            g.drawImage(tileset.get(tile_id), (int) Math.round(pos.x), (int) Math.round(pos.y + 1), x_dimension, y_dimension, null);
                         }
                         g.drawImage(tileset.get(tile_id), (int) Math.round(pos.x), (int) Math.round(pos.y), x_dimension, y_dimension, null);
                     }
@@ -302,11 +296,34 @@ public class Render{
         g.drawImage(bullet_img, (int)Math.round(frame_pos.x - bullet_img.getWidth(null)/2), (int)Math.round(frame_pos.y - bullet_img.getHeight(null)/2), bullet_img.getWidth(null), bullet_img.getHeight(null), null);
     }
 
+    public void render_background(){
+        String type = Game.level_background.get(Game.current_level);
+        if (type.equals("moveable")){
+            DrawBackground(Game.moveable_background);
+        }
+        else if (type.equals("fixed")){
+            DrawFixedBG(Game.static_background);
+        }
+    }
+
+    public void render_pause_screen(){
+        g.setColor(new Color(0, 0, 255, 125));
+        g.fillRect(0, 0, width, height);
+        g.setColor(Color.white);
+        g.setFont(new Font("Arial", Font.ITALIC, 100));
+        g.drawString("PAUSE", (int)(width/2 - (200/Game.SCALE)), (int)(height/2 - (200/Game.SCALE)));
+        g.setFont(new Font("Arial", Font.BOLD, 50));
+        g.drawString("Resume", (int)(width/2 - (125/Game.SCALE)), (int)(height/2 + 25/Game.SCALE));
+        g.drawString("Exit the game", (int)(width/2 - (200/Game.SCALE)), (int)(height/2 + (175/Game.SCALE)));
+        g.setFont(new Font("Arial", Font.PLAIN, 12));
+    }
+
     public void update(){
         if (!Game.DEBUG){
             DrawBackground(Game.background.get(Game.current_level));
         }
         update_frame_pos();
+        render_background();
         render_tilemap();
         if (Game.DEBUG){
             render_collision_box();

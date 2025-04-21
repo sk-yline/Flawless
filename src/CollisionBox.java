@@ -9,6 +9,7 @@ public class CollisionBox {
     public String type;
     public Vector frame_pos = new Vector();
     boolean enable = true;
+    boolean temp_shut = false;
 
     public CollisionBox(Vector pos, Vector size, double theta, String type){
         this.pos = pos;
@@ -51,6 +52,22 @@ public class CollisionBox {
     public Rectangle2D get_rect(){
         ArrayList<Vector> vert = get_verticies();
         return new Rectangle2D.Double(vert.get(3).x, vert.get(3).y, size.x, size.y);
+    }
+
+    final double sound_pause = 0.4;
+    public double sound_timer = 0;
+    public void update_ref(double delta){
+        if (enable == false && sound_timer == 0){
+            sound_timer = sound_pause;
+        }
+
+        sound_timer -= delta;
+        if (sound_timer <= 0){
+            sound_timer = 0;
+        }
+        if (sound_timer == 0){
+            enable = true;
+        }
     }
 
 }

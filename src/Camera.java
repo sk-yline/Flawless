@@ -13,8 +13,8 @@ public class Camera {
 
     public void clamp_boundary(){
         int current_lv = Game.current_level;
-        int level_height = Game.levels.get(current_lv).height * Game.GRIDSIZE;
-        int level_width = Game.levels.get(current_lv).width * Game.GRIDSIZE;
+        int level_height = Game.level.height * Game.GRIDSIZE;
+        int level_width = Game.level.width * Game.GRIDSIZE;
         if (campos.x - width/2 < 0) campos.x = width/2;
         if (campos.x + width/2 > level_width) campos.x = level_width - width/2;
         if (campos.y - height/2 < 0) campos.y = height/2;

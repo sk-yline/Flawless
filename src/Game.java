@@ -89,8 +89,9 @@ final public static int GRIDSIZE = Math.round((float)(16*3 / SCALE));
 
 public static Render rend;
 public static ArrayList<Image> background; 
-public static ArrayList<Level> levels = new ArrayList<>();
+public static Level level;
 public static int current_level = 0;
+public static boolean next_level = false;
 public static CollisionManager collisionManager = new CollisionManager();
 public static Camera camera;
 public static Mouse mouse;
@@ -104,9 +105,12 @@ long previous_time = System.currentTimeMillis();
 long current_time = System.currentTimeMillis();
 
 public static double hit_pause = 0;
-final public static double hit_pause_time = 0.1;
+final public static double hit_pause_time = 0.15;
 
 public static HashMap<String, AudioClip> sound = new HashMap();
+public static ArrayList<String> level_background = new ArrayList<>();
+public static Image moveable_background = null;
+public static Image static_background = null;
 
 public static ArrayList<Bullet> bullets = new ArrayList<>();
 public static ArrayList<Enemy> enemies = new ArrayList<>();
@@ -136,6 +140,7 @@ public void intialize_sound(){
     sound.put("impact", getAudioClip(getCodeBase(), "\\audio\\impact.wav"));
     sound.put("sword", getAudioClip(getCodeBase(), "\\audio\\sword.wav"));
     sound.put("walk", getAudioClip(getCodeBase(), "\\audio\\walk.wav"));
+    sound.put("break", getAudioClip(getCodeBase(), "\\audio\\break.wav"));
 }
 
 public BufferedImage loadimg(String path){
@@ -279,6 +284,17 @@ public void initialize_pictures(){
     enemy_2_img.get("Gun").add(loadimg("\\resource\\enemy_2\\Gun.png"));
 
     bullet_img = loadimg("\\resource\\bullet\\bullet.png");
+
+    moveable_background = loadimg("\\resource\\background\\Moveable_background.png");
+    static_background = loadimg("\\resource\\background\\Static_background.png");
+
+    level_background = new ArrayList<String>() {{
+        add("moveable");
+        add("moveable");
+        add("moveable");
+        add("static");
+        add("moveable");
+    }};
 }
 
 public void init(){ 
@@ -289,8 +305,6 @@ public void init(){
         this.setSize(WIDTH, HEIGHT);
         
         rend = new Render(getScreenBuffer(), WIDTH, HEIGHT);
-        background = new ArrayList<>();
-        background.add(rend.scale(rend.loadimg("\\resource\\background\\10.png"), SCALE));
         mouse = new Mouse();
 
         intialize_sound();
@@ -303,9 +317,9 @@ public void init(){
         this.addMouseListener(this);
         this.addMouseMotionListener(this);
 
-        levels.add(new Level(0));
-        levels.get(0).initialize();
-        camera = new Camera(new Vector(0, player.pos.y), WIDTH, HEIGHT);
+        level = new Level(current_level);
+        level.initialize();
+        camera = new Camera(level.start_pos, WIDTH, HEIGHT);
     }
 
     public void update_input(){
@@ -316,12 +330,35 @@ public void init(){
         }
     }
 
+    public void fade_out(double opacity){
+        rend.update();
+        rend.g.setColor(new Color(0, 0, 0, (int)(opacity*255)));
+        rend.g.fillRect(0, 0, WIDTH, HEIGHT);
+        rend.g.setColor(Color.white);
+
+        if (opacity >= 0.9){
+            can_reset = true;
+        }
+    }
+
+    public void fade_in(){
+        for (double opacity = 1; opacity > 0; opacity -= 0.015){
+            rend.update();
+            rend.g.setColor(new Color(0, 0, 0, (int)(opacity*255)));
+            rend.g.fillRect(0, 0, WIDTH, HEIGHT);
+            rend.g.setColor(Color.white);
+        }
+    }
+
     public void reset(){
         collisionManager.collidable.clear();
         bullets.clear();
         enemies.clear();
-
-        levels.get(current_level).initialize();
+        removeables.clear();
+        level = new Level(current_level);
+        level.initialize();
+        camera = new Camera(level.start_pos, WIDTH, HEIGHT);
+        hit_pause = 0;
     }
 
     public void remove_all(){
@@ -348,11 +385,43 @@ public void init(){
         }
     }
 
-    public void movie(Graphics g){
-        // System.out.println(mousedown);
+    boolean fade_out = false;
+    double opacity = 0;
+    boolean can_reset = false;
+    boolean pause = false;
+    int pause_select = 0;
 
-        update_input();
+    public void movie(Graphics g){
         rend.g = g;
+
+        if (player.died){
+            if (!fade_out){
+                fade_out = true;
+                opacity = 0;
+            }
+            if (can_reset){
+                reset();
+                can_reset = false;
+                fade_out = false;
+            }
+        }
+
+        if (next_level){
+            if (!fade_out){
+                fade_out = true;
+                opacity = 0;
+                current_level++;
+            }
+            if (can_reset){
+                reset();
+                can_reset = false;
+                fade_out = false;
+                next_level = false;
+            }
+        }  
+
+        // System.out.println(mousedown);
+        update_input();
         g.setColor(Color.black);
         g.fillRect(0, 0, WIDTH, HEIGHT);
         g.setColor(Color.white);
@@ -361,28 +430,98 @@ public void init(){
         current_time = System.currentTimeMillis();
         double delta = (current_time - previous_time) / 1000.0;
 
-        if (hit_pause == 0){
-            collisionManager.update(delta);
-            camera.update(delta);
-            mouse.update();
-            for (Enemy e : enemies){
-                e.update(delta);
-            }
-            for (Bullet b : bullets){
-                b.update(delta);
-            }
-            player.update(delta);
-            remove_all();
-            rend.update();
-            rend.g.drawString(Integer.toString(enemies.size()), 1100, 100);
-            rend.g.drawString(Integer.toString(collisionManager.collidable.size()), 1100, 120);
-            rend.g.drawString(Integer.toString(bullets.size()), 1100, 140);
-            rend.g.drawString(Integer.toString(player.hp), 100, 160);
+        if (fade_out){
+            opacity += 0.02;
+            fade_out(opacity);
             repaint();
         }
-        hit_pause -= delta;
-        if (hit_pause < 0){
-            hit_pause = 0;
+        else{
+            if (keydown[KeyEvent.VK_ESCAPE]){
+                pause = !pause;
+                pause_select = 1;
+            }
+
+            if (pause){
+                rend.update();
+                rend.render_pause_screen();
+                if (keydown[KeyEvent.VK_W] || keydown[KeyEvent.VK_UP]){
+                    pause_select--;
+                    if (pause_select < 1){
+                        pause_select = 2;
+                    }
+                }
+                else if (keydown[KeyEvent.VK_S] || keydown[KeyEvent.VK_DOWN]){
+                    pause_select++;
+                    if (pause_select > 2){
+                        pause_select = 1;
+                    }
+                }
+
+                if (pause_select != 0){
+                    rend.g.setColor(new Color(255, 255, 255, 100));
+                    rend.g.fillRoundRect((int) (WIDTH/2 - 300/Game.SCALE), (int)(HEIGHT/2 - (50/Game.SCALE) + 150/Game.SCALE * (pause_select - 1)), (int)(600/Game.SCALE), (int)(100/Game.SCALE), 10, 10);
+                    rend.g.setColor(Color.white);
+                    if (keydown[KeyEvent.VK_SPACE] || keydown[KeyEvent.VK_ENTER]){
+                        if (pause_select == 1){
+                            pause = false;
+                        }
+                        else if (pause_select == 2){
+                            this.dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
+                        }
+                    }
+                }
+                repaint();
+            }
+            else{
+                if (hit_pause == 0){
+                    int previous_hp = player.hp;
+                    collisionManager.update(delta);
+                    camera.update(delta);
+                    mouse.update();
+                    for (Enemy e : enemies){
+                        e.update(delta);
+                    }
+                    for (Bullet b : bullets){
+                        b.update(delta);
+                    }
+                    player.update(delta);
+                    remove_all();
+                    if (player.hp != previous_hp){
+                        player.hp = previous_hp - 1;
+                    }
+    
+                    rend.update();
+                    // rend.g.drawString(Integer.toString(enemies.size()), 1100, 100);
+                    // rend.g.drawString(Integer.toString(collisionManager.collidable.size()), 1100, 120);
+                    // rend.g.drawString(Integer.toString(bullets.size()), 1100, 140);
+                    // rend.g.drawString(Integer.toString(player.hp), 100, 160);
+                    repaint();
+    
+                }
+                else{
+                    if (player.hit){
+                        System.out.println("hit!");
+                        player.change_state("Hit");
+                        rend.update();
+                        repaint();
+                    }
+                    else if (player.hp == 0){
+                        player.update(delta);
+                        rend.update();
+                        repaint();
+    
+                    }
+                }
+                player.hit_time -= delta;
+                if (player.hit_time <= 0){
+                    player.hit_time = 0;
+                    player.hit = false;
+                }
+                hit_pause -= delta;
+                if (hit_pause < 0){
+                    hit_pause = 0;
+                }
+            }
         }
     }
 }

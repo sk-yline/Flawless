@@ -88,7 +88,33 @@ public class CollisionManager{
         collidable.get(atk_ind).theta = dir;
     }
 
+    public void update_platform(){
+        double player_bottom = Game.player.pos.y + Game.player.size.y/2;
+        for (CollisionBox c : collidable){
+            if (c.type.equals("platform")){
+                double top = c.pos.y - c.size.y/2;
+                if (player_bottom < top - 4){
+                    c.enable = true;
+                }
+
+                if (player_bottom > top + 2){
+                    c.enable = false;
+                }
+            }
+        }
+    }
+
+    public void update_refill(double delta){
+        for (CollisionBox c : Game.collisionManager.collidable){
+            if (c.type.equals("refill")){
+                c.update_ref(delta);
+            }
+        }
+    }
+
     public void update(double delta){
         update_pos();
+        update_platform();
+        update_refill(delta);
     }
 }

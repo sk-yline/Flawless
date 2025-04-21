@@ -23,7 +23,7 @@ public class Enemy {
         this.size = size;
         this.pos = pos;
         for (CollisionBox c : Game.collisionManager.collidable){
-            if (c.type.equals("wall")){
+            if (c.type.equals("wall") || c.type.equals("platform")){
                 Line2D bottom = new Line2D.Double(new Point2D.Double(pos.x, pos.y), new Point2D.Double(pos.x, pos.y + size.y/2 + 20));
                 Rectangle2D rect = c.get_rect();
                 if (bottom.intersects(rect)){
@@ -35,7 +35,7 @@ public class Enemy {
         }
         this.box = box;
         Game.collisionManager.collidable.add(box);
-        this.attackbox = new CollisionBox(new Vector(pos.x + direction * 40/Game.SCALE, pos.y), new Vector(Game.GRIDSIZE * 3/Game.SCALE, Game.GRIDSIZE*2/Game.SCALE), 0, "enemy_atk");
+        this.attackbox = new CollisionBox(new Vector(pos.x + direction * 40/Game.SCALE, pos.y), new Vector(Game.GRIDSIZE * 3/Game.SCALE, Game.GRIDSIZE*3/Game.SCALE), 0, "enemy_atk");
         this.attackbox.enable = false;
         Game.collisionManager.collidable.add(attackbox);
     }
@@ -118,7 +118,7 @@ public class Enemy {
                     if (pos.x + size.x/2 >= border_right){
                         pos.x = border_right;
                     }
-                    attack_duration = 0;
+                    Game.collisionManager.collidable.get(find_ind_atk()).enable = false;
                     Game.player.attack_duration = 0;
                     c.enable = false;
                     check_player = false;
@@ -131,10 +131,18 @@ public class Enemy {
         if (check_player){
             for (CollisionBox c : Game.collisionManager.collidable){
                 if (c.type.equals("player")){
-                    if (Game.collisionManager.collide(attackbox, c) && attackbox.enable){
+                    if (Game.collisionManager.collide(attackbox, c) && attackbox.enable && c.enable){
                         Game.player.hp -= 1;
-                        Game.sound.get("impact").play();
-                        attack_duration = 0;
+                        if (Game.player.hp == 1){
+                            Game.player.hit = true;
+                            Game.hit_pause = Game.hit_pause_time;
+                            Game.player.hit_time = Game.player.hit_duration;
+                            Game.sound.get("break").play();
+                        }
+                        else{
+                            Game.hit_pause = 1000;
+                        }
+                        Game.collisionManager.collidable.get(find_ind_atk()).enable = false;
                         Game.player.attack_duration = 0;
                     }
                 }
@@ -192,7 +200,9 @@ public class Enemy {
                 }
                 else{
                     frame++;
-                    frame %= max_frame;
+                    if (frame >= max_frame){
+                        change_state("Idle");
+                    }
                     frame_pause_timer = frame_pause;
                 }
             }
@@ -247,7 +257,7 @@ public class Enemy {
         }
         boolean move = true;
         boolean idle = true;
-        if (Math.abs(Game.player.pos.y - pos.y) < 70){
+        if (Math.abs(Game.player.pos.y - pos.y) < 200/Game.SCALE){
             if (Math.abs(Game.player.pos.x - pos.x) < 200/Game.SCALE){
                 if (wait == 0){
                     if (!attacking && attack_cd == 0){
@@ -262,6 +272,9 @@ public class Enemy {
                         change_state("Attack");
                         attack(delta);
                     }
+                }
+                else{
+                    change_state("Idle");
                 }
 
                 wait -= delta;
@@ -324,7 +337,7 @@ public class Enemy {
        if (bullet_cool == 0 && pre_cast == 0){
             Random rnd = new Random();
             int bullet_dir = find_angle();
-            int drift = rnd.nextInt(5) - 2;
+            int drift = rnd.nextInt(7) - 3;
             Game.bullets.add(new Bullet(new Vector(pos.x, pos.y), bullet_dir + drift, "enemy"));
             bullet_cool = bullet_cooldown;
        }

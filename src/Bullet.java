@@ -58,9 +58,18 @@ public class Bullet {
             }
 
             if (owner.equals("enemy") && c.type.equals("player")){
-                if (Game.collisionManager.collide(box, c)){
+                if (Game.collisionManager.collide(box, c) && c.enable){
                     //System.out.println("bullet hit player!");
                     Game.player.hp -= 1;
+                    if (Game.player.hp == 1){
+                        Game.player.hit = true;
+                        Game.hit_pause = Game.hit_pause_time;
+                        Game.player.hit_time = Game.player.hit_duration;
+                        Game.sound.get("break").play();
+                    }
+                    else{
+                        Game.hit_pause = 1000;
+                    }
                     destroy();
                 }
             }
