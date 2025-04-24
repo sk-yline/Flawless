@@ -20,11 +20,14 @@ import java.awt.image.BufferedImage;
 import java.util.HashMap;
 
 import javax.imageio.ImageIO;
+import javax.sound.sampled.Clip;
 import javax.swing.JFrame;
 import javax.swing.Renderer;
 import javax.swing.RepaintManager;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
 
 public class Game extends TApplet implements MouseMotionListener, MouseListener
 {
@@ -82,7 +85,7 @@ public class Game extends TApplet implements MouseMotionListener, MouseListener
     }
 
 final public static double SCALE = 1.25; //Corresponds to 125% in display setting
-final public static boolean DEBUG = true;
+final public static boolean DEBUG = false;
 final public static int WIDTH = Math.round((float)(1920 / SCALE));
 final public static int HEIGHT = Math.round((float)(1200 / SCALE));
 final public static int GRIDSIZE = Math.round((float)(16*3 / SCALE));
@@ -90,7 +93,7 @@ final public static int GRIDSIZE = Math.round((float)(16*3 / SCALE));
 public static Render rend;
 public static ArrayList<Image> background; 
 public static Level level;
-public static int current_level = 0;
+public static int current_level = 1;
 public static boolean next_level = false;
 public static CollisionManager collisionManager = new CollisionManager();
 public static Camera camera;
@@ -109,7 +112,7 @@ final public static double hit_pause_time = 0.15;
 
 public static HashMap<String, AudioClip> sound = new HashMap();
 public static ArrayList<String> level_background = new ArrayList<>();
-public static Image moveable_background = null;
+public static ArrayList<Image> moveable_background = new ArrayList<>();
 public static Image static_background = null;
 
 public static ArrayList<Bullet> bullets = new ArrayList<>();
@@ -131,8 +134,13 @@ public static HashMap<String, Integer> enemy_1_frame = new HashMap();
 public static HashMap<String, ArrayList<BufferedImage>> enemy_2_img = new HashMap();
 
 public static BufferedImage bullet_img;
+public static BufferedImage killing_strip;
 public static HashMap<String, ArrayList<Image>> effects_img = new HashMap();
 
+public static Image mainscreen = null;
+public static Clip mainmusic = null;
+
+//Intialize all the sound effects
 public void intialize_sound(){
     sound.put("jump", getAudioClip(getCodeBase(), "\\audio\\jump.wav"));
     sound.put("clash", getAudioClip(getCodeBase(), "\\audio\\clash.wav"));
@@ -141,8 +149,21 @@ public void intialize_sound(){
     sound.put("sword", getAudioClip(getCodeBase(), "\\audio\\sword.wav"));
     sound.put("walk", getAudioClip(getCodeBase(), "\\audio\\walk.wav"));
     sound.put("break", getAudioClip(getCodeBase(), "\\audio\\break.wav"));
+    sound.put("gun", getAudioClip(getCodeBase(), "\\audio\\gun.wav"));
+    sound.put("pause", getAudioClip(getCodeBase(), "\\audio\\pause.wav"));
+    sound.put("unpause", getAudioClip(getCodeBase(), "\\audio\\unpause.wav"));
+    sound.put("death", getAudioClip(getCodeBase(), "\\audio\\death.wav"));
+
+    try {
+        AudioInputStream music = AudioSystem.getAudioInputStream(new File(System.getProperty("user.dir") + "\\audio\\bgm.wav"));
+        mainmusic = AudioSystem.getClip();
+        mainmusic.open(music);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
 }
 
+//Load the image
 public BufferedImage loadimg(String path){
     BufferedImage img = null;
     String basepath = System.getProperty("user.dir");
@@ -207,6 +228,7 @@ public Image horizantal_flip(BufferedImage image, int scale){
     return scale(new_img, scale);
 }
 
+//Initialize all the images
 public void initialize_pictures(){
     String[] player_states = {"Dash", "Jump", "Death", "Idle", "Run", "Wall", "Land", "Hit","DoubleJump"};
     HashMap<String, Vector> player_center = new HashMap<String, Vector>() {{
@@ -222,6 +244,7 @@ public void initialize_pictures(){
         put("Wall", new Vector(6, 6.5));
     }};
 
+    //Frame pictures
     for (String s : player_states){
         player_img.put(s, new ArrayList<>());
         player_img_reverse.put(s, new ArrayList<>());
@@ -243,12 +266,15 @@ public void initialize_pictures(){
         }
     }
 
+    //Attack Image
     player_frame.put("Attack", 5);
     for (int i = 0; i<5; i++){
         BufferedImage img = loadimg("\\resource\\player\\Slash" + i + ".png");
         player_attack.add(img);
     }
 
+
+    //Enemy Frames
     String[] enemy_1_states = {"Idle", "Run", "Death", "Attack"};
     HashMap<String, Vector> enemy_1_center = new HashMap<String, Vector>() {{
         put("Idle", new Vector(6, 4));
@@ -283,18 +309,25 @@ public void initialize_pictures(){
     enemy_2_img.get("Idle").add(loadimg("\\resource\\enemy_2\\Idle.png").getSubimage(0, 0, 48, 48));
     enemy_2_img.get("Gun").add(loadimg("\\resource\\enemy_2\\Gun.png"));
 
+    //Bullet Images
     bullet_img = loadimg("\\resource\\bullet\\bullet.png");
+    killing_strip = loadimg("\\resource\\bullet\\killing_strip.png");
 
-    moveable_background = loadimg("\\resource\\background\\Moveable_background.png");
+    //Backgrounds
+    for (int i = 1; i<=5; i++){
+        moveable_background.add(scale(loadimg("\\resource\\background\\Moveable_background\\" + i + ".png"), 4));
+    }
     static_background = loadimg("\\resource\\background\\Static_background.png");
 
     level_background = new ArrayList<String>() {{
         add("moveable");
         add("moveable");
         add("moveable");
-        add("static");
+        add("moveable");
         add("moveable");
     }};
+
+    mainscreen = scale(loadimg("\\resource\\background\\Mainscreen.png"), 1);
 }
 
 public void init(){ 
@@ -316,10 +349,6 @@ public void init(){
         this.getContentPane().setCursor(blankCursor);
         this.addMouseListener(this);
         this.addMouseMotionListener(this);
-
-        level = new Level(current_level);
-        level.initialize();
-        camera = new Camera(level.start_pos, WIDTH, HEIGHT);
     }
 
     public void update_input(){
@@ -330,27 +359,15 @@ public void init(){
         }
     }
 
-    public void fade_out(double opacity){
-        rend.update();
+    //Fade out
+    public void fade(double opacity){
         rend.g.setColor(new Color(0, 0, 0, (int)(opacity*255)));
         rend.g.fillRect(0, 0, WIDTH, HEIGHT);
         rend.g.setColor(Color.white);
-
-        if (opacity >= 0.9){
-            can_reset = true;
-        }
     }
 
-    public void fade_in(){
-        for (double opacity = 1; opacity > 0; opacity -= 0.015){
-            rend.update();
-            rend.g.setColor(new Color(0, 0, 0, (int)(opacity*255)));
-            rend.g.fillRect(0, 0, WIDTH, HEIGHT);
-            rend.g.setColor(Color.white);
-        }
-    }
-
-    public void reset(){
+    //Reset the level and empty all the reference ArrayLists
+    public void reset(){ 
         collisionManager.collidable.clear();
         bullets.clear();
         enemies.clear();
@@ -361,6 +378,7 @@ public void init(){
         hit_pause = 0;
     }
 
+    //Remove all the objects that needs to be removed after this frame (i.e if died)
     public void remove_all(){
         for (CollisionBox c : removeables){
             if (c.type.contains("enemy")){
@@ -386,41 +404,20 @@ public void init(){
     }
 
     boolean fade_out = false;
+    boolean fade_in = false;
     double opacity = 0;
     boolean can_reset = false;
     boolean pause = false;
     int pause_select = 0;
+    String state = "mainscreen";
+    boolean thank_page = false;
+    boolean quote = false;
+    int screen_select = 1;
+    int ending_select = 1;
 
     public void movie(Graphics g){
         rend.g = g;
 
-        if (player.died){
-            if (!fade_out){
-                fade_out = true;
-                opacity = 0;
-            }
-            if (can_reset){
-                reset();
-                can_reset = false;
-                fade_out = false;
-            }
-        }
-
-        if (next_level){
-            if (!fade_out){
-                fade_out = true;
-                opacity = 0;
-                current_level++;
-            }
-            if (can_reset){
-                reset();
-                can_reset = false;
-                fade_out = false;
-                next_level = false;
-            }
-        }  
-
-        // System.out.println(mousedown);
         update_input();
         g.setColor(Color.black);
         g.fillRect(0, 0, WIDTH, HEIGHT);
@@ -429,99 +426,256 @@ public void init(){
         previous_time = current_time;
         current_time = System.currentTimeMillis();
         double delta = (current_time - previous_time) / 1000.0;
+        
+        if (state.equals("mainscreen")){
+            //UI
+            rend.g.drawImage(mainscreen, 0, 0, WIDTH, HEIGHT, null);
+            rend.g.setFont(new Font("Arial", Font.ITALIC, 100));
+            rend.g.drawString("Flawless", (int) (100/SCALE), HEIGHT/2 - (int) (100 / SCALE));
+            rend.g.setFont(new Font("Arial", Font.PLAIN, 50));
+            rend.g.drawString("New Game", (int) (100/SCALE), (int) (HEIGHT/2 + 250/SCALE));
+            rend.g.drawString("Exit", (int) (100/SCALE), (int) (HEIGHT/2 + 350/SCALE));
 
-        if (fade_out){
-            opacity += 0.02;
-            fade_out(opacity);
-            repaint();
-        }
-        else{
-            if (keydown[KeyEvent.VK_ESCAPE]){
-                pause = !pause;
-                pause_select = 1;
+            //Selection on mainscreen
+            if (keydown[KeyEvent.VK_W] || keydown[KeyEvent.VK_UP]){
+                screen_select--;
+                if (screen_select < 1){
+                    screen_select = 2;
+                }
+            }
+            else if (keydown[KeyEvent.VK_S] || keydown[KeyEvent.VK_DOWN]){
+                screen_select++;
+                if (screen_select > 2){
+                    screen_select = 1;
+                }
             }
 
-            if (pause){
-                rend.update();
-                rend.render_pause_screen();
-                if (keydown[KeyEvent.VK_W] || keydown[KeyEvent.VK_UP]){
-                    pause_select--;
-                    if (pause_select < 1){
-                        pause_select = 2;
+            if (screen_select != 0){
+                rend.g.setColor(new Color(255, 255, 255, 100));
+                rend.g.fillRoundRect((int)(25/Game.SCALE), (int)(HEIGHT/2 - (50/Game.SCALE) + 225/Game.SCALE + 100/Game.SCALE * (screen_select - 1)), (int)(600/Game.SCALE), (int)(100/Game.SCALE), 10, 10);
+                rend.g.setColor(Color.white);
+                if (keydown[KeyEvent.VK_SPACE] || keydown[KeyEvent.VK_ENTER]){
+                    if (screen_select == 1){
+                        //Start the game 
+                        fade_out = true;
+                        opacity = 0;
+                    }
+                    else if (screen_select == 2){
+                        //Exit the game
+                        this.dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
                     }
                 }
-                else if (keydown[KeyEvent.VK_S] || keydown[KeyEvent.VK_DOWN]){
-                    pause_select++;
-                    if (pause_select > 2){
-                        pause_select = 1;
-                    }
-                }
+            }
 
-                if (pause_select != 0){
-                    rend.g.setColor(new Color(255, 255, 255, 100));
-                    rend.g.fillRoundRect((int) (WIDTH/2 - 300/Game.SCALE), (int)(HEIGHT/2 - (50/Game.SCALE) + 150/Game.SCALE * (pause_select - 1)), (int)(600/Game.SCALE), (int)(100/Game.SCALE), 10, 10);
-                    rend.g.setColor(Color.white);
-                    if (keydown[KeyEvent.VK_SPACE] || keydown[KeyEvent.VK_ENTER]){
-                        if (pause_select == 1){
-                            pause = false;
-                        }
-                        else if (pause_select == 2){
-                            this.dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
-                        }
+            if (fade_out){
+                //UI
+                rend.g.drawImage(mainscreen, 0, 0, WIDTH, HEIGHT, null);
+                rend.g.setFont(new Font("Arial", Font.ITALIC, 100));
+                rend.g.drawString("Flawless", (int) (100/SCALE), HEIGHT/2 - (int) (100 / SCALE));
+                rend.g.setFont(new Font("Arial", Font.PLAIN, 50));
+                rend.g.drawString("New Game", (int) (100/SCALE), (int) (HEIGHT/2 + 250/SCALE));
+                rend.g.drawString("Exit", (int) (100/SCALE), (int) (HEIGHT/2 + 350/SCALE));
+                rend.g.setColor(new Color(255, 255, 255, 100));
+                rend.g.fillRoundRect((int)(25/Game.SCALE), (int)(HEIGHT/2 - (50/Game.SCALE) + 225/Game.SCALE), (int)(600/Game.SCALE), (int)(100/Game.SCALE), 10, 10);
+                rend.g.setColor(Color.white);
+
+                //Gradually increase opacity
+                opacity += 0.01;
+                fade(opacity);
+                if (opacity > 0.96){
+                    state = "running";
+                    reset();
+                    fade_out = false;
+                    mainmusic.loop(Clip.LOOP_CONTINUOUSLY);
+                    mainmusic.start();
+                }
+            }
+            repaint();
+        }
+
+        if (state.equals("running")){
+            if (player.died){
+                if (!fade_out){
+                    fade_out = true;
+                    opacity = 0;
+                }
+                if (can_reset){
+                    reset();
+                    can_reset = false;
+                    fade_out = false;
+                }
+            }
+
+            if (next_level){
+                if (!fade_out){
+                    fade_out = true;
+                    opacity = 0;
+                    current_level++;
+                }
+                if (can_reset){
+                    if (current_level == 5){
+                        //Don't reset on the "level_5", else it will be subscript out of range
+                        state = "ending";
                     }
+                    else{
+                        reset();
+                    }
+                    can_reset = false;
+                    fade_out = false;
+                    next_level = false;
+                }
+            }  
+
+            if (fade_out){
+
+                //fading after death or screen transition
+                opacity += 0.02;
+                rend.update();
+                fade(opacity);
+                if (opacity > 0.9){
+                    can_reset = true;
                 }
                 repaint();
             }
             else{
-                if (hit_pause == 0){
-                    int previous_hp = player.hp;
-                    collisionManager.update(delta);
-                    camera.update(delta);
-                    mouse.update();
-                    for (Enemy e : enemies){
-                        e.update(delta);
+                if (keydown[KeyEvent.VK_ESCAPE]){
+                    //pause manuel
+                    pause = !pause;
+                    pause_select = 1;
+                    if (pause == true){
+                        sound.get("pause").play();
                     }
-                    for (Bullet b : bullets){
-                        b.update(delta);
+                    else{
+                        sound.get("unpause").play();
                     }
-                    player.update(delta);
-                    remove_all();
-                    if (player.hp != previous_hp){
-                        player.hp = previous_hp - 1;
-                    }
-    
+                }
+
+                if (pause){
                     rend.update();
-                    // rend.g.drawString(Integer.toString(enemies.size()), 1100, 100);
-                    // rend.g.drawString(Integer.toString(collisionManager.collidable.size()), 1100, 120);
-                    // rend.g.drawString(Integer.toString(bullets.size()), 1100, 140);
-                    // rend.g.drawString(Integer.toString(player.hp), 100, 160);
+                    rend.render_pause_screen();
+
+                    //use arrow key to select option
+                    if (keydown[KeyEvent.VK_W] || keydown[KeyEvent.VK_UP]){
+                        pause_select--;
+                        if (pause_select < 1){
+                            pause_select = 3;
+                        }
+                    }
+                    else if (keydown[KeyEvent.VK_S] || keydown[KeyEvent.VK_DOWN]){
+                        pause_select++;
+                        if (pause_select > 3){
+                            pause_select = 1;
+                        }
+                    }
+                    // highlight selected option
+                    if (pause_select != 0){
+                        rend.g.setColor(new Color(255, 255, 255, 100));
+                        rend.g.fillRoundRect((int) (WIDTH/2 - 300/Game.SCALE), (int)(HEIGHT/2 - (50/Game.SCALE) + 150/Game.SCALE * (pause_select - 1)), (int)(600/Game.SCALE), (int)(100/Game.SCALE), 10, 10);
+                        rend.g.setColor(Color.white);
+                        if (keydown[KeyEvent.VK_SPACE] || keydown[KeyEvent.VK_ENTER]){
+                            if (pause_select == 1){
+                                pause = false;
+                            }
+                            else if (pause_select == 2){
+                                reset();
+                            }
+                            else if (pause_select == 3){
+                                this.dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
+                            }
+                        }
+                    }
                     repaint();
-    
                 }
                 else{
-                    if (player.hit){
-                        System.out.println("hit!");
-                        player.change_state("Hit");
-                        rend.update();
-                        repaint();
-                    }
-                    else if (player.hp == 0){
+                    if (hit_pause == 0){
+
+                        int previous_hp = player.hp;
+                        collisionManager.update(delta);
+                        camera.update(delta);
+                        mouse.update();
+                        for (Enemy e : enemies){
+                            e.update(delta);
+                        }
+                        for (Bullet b : bullets){
+                            b.update(delta);
+                        }
                         player.update(delta);
+                        remove_all();
+                        if (player.hp != previous_hp){
+                            player.hp = previous_hp - 1;
+                        }
+        
                         rend.update();
                         repaint();
-    
+        
                     }
-                }
-                player.hit_time -= delta;
-                if (player.hit_time <= 0){
-                    player.hit_time = 0;
-                    player.hit = false;
-                }
-                hit_pause -= delta;
-                if (hit_pause < 0){
-                    hit_pause = 0;
+                    else{
+                        if (player.hit){
+                            System.out.println("hit!");
+                            player.change_state("Hit");
+                            rend.update();
+                            repaint();
+                        }
+                        else if (player.hp == 0){
+                            player.update(delta);
+                            rend.update();
+                            repaint();
+        
+                        }
+                    }
+
+                    //pause game for a short bit when hit 
+                    player.hit_time -= delta;
+                    if (player.hit_time <= 0){
+                        player.hit_time = 0;
+                        player.hit = false;
+                    }
+                    hit_pause -= delta;
+                    if (hit_pause < 0){
+                        hit_pause = 0;
+                    }
                 }
             }
+        }
+
+        if (state.equals("ending")){
+            mainmusic.stop();
+            rend.g.setColor(Color.black);
+            rend.g.fillRect(0, 0, WIDTH, HEIGHT);
+            rend.g.setColor(Color.white);
+            rend.g.setFont(new Font("Arial", Font.BOLD, 80));
+            rend.g.drawString("Thank you for playing the demo!", (int) (WIDTH/2 - 600/SCALE), (int) (HEIGHT/2));
+            rend.g.setFont(new Font("Arial", Font.PLAIN, 40));
+            rend.g.drawString("Back to Mainscreen", (int) (WIDTH/2 - 150/SCALE), (int) (HEIGHT/2 + 100/SCALE));
+            rend.g.drawString("Exit the game", (int) (WIDTH/2 - 150/SCALE), (int) (HEIGHT/2 + 200/SCALE));
+            if (keydown[KeyEvent.VK_W] || keydown[KeyEvent.VK_UP]){
+                ending_select--;
+                if (ending_select < 1){
+                    ending_select = 2;
+                }
+            }
+            else if (keydown[KeyEvent.VK_S] || keydown[KeyEvent.VK_DOWN]){
+                ending_select++;
+                if (ending_select > 2){
+                    ending_select = 1;
+                }
+            }
+
+            if (ending_select != 0){
+                rend.g.setColor(new Color(255, 255, 255, 100));
+                rend.g.fillRoundRect((int)(WIDTH/2 - 200/Game.SCALE), (int)(HEIGHT/2 - (50/Game.SCALE) + 100/Game.SCALE + 100/Game.SCALE * (ending_select - 1)), (int)(400/Game.SCALE), (int)(100/Game.SCALE), 10, 10);
+                rend.g.setColor(Color.white);
+                if (keydown[KeyEvent.VK_SPACE] || keydown[KeyEvent.VK_ENTER]){
+                    if (ending_select == 1){
+                        state = "mainscreen";
+                    }
+                    else if (ending_select == 2){
+                        this.dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
+                    }
+                }
+            }
+
+            repaint();
         }
     }
 }

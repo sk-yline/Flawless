@@ -13,7 +13,6 @@ public class Render{
     private final String basepath = System.getProperty("user.dir");
     public int width;
     public int height;
-    public double parrallax = 0.1; //背景移动速度与camera的比例
 
     public Render (Graphics g, int width, int height){
         this.g = g;
@@ -21,6 +20,8 @@ public class Render{
         this.height = height;
     }
 
+
+    //Load the image
     public BufferedImage loadimg(String path){
         BufferedImage img = null;
         
@@ -33,19 +34,20 @@ public class Render{
         return img;
     }
 
+    
     public Image scale(BufferedImage img, double s){
         int img_width = (int)Math.round(img.getWidth() * s / Game.SCALE);
         int img_height = (int)Math.round(img.getHeight() * s / Game.SCALE);
         return img.getScaledInstance(img_width, img_height, Image.SCALE_DEFAULT);
     }
 
-    public void DrawBackground(Image img){
+    public void DrawBackground(Image img, double parrallax){
         int img_width = img.getWidth(null);
         int img_height = img.getHeight(null);
         
         int l = (int) (Game.camera.l * parrallax) % img_width;
         int r = l + width;
-        int u = 0;
+        int u = 50;
         int b = u + height;
         //l, r, u, b代表camera的四个边所对应到背景上的位置
         //dx前缀表示绘制到屏幕上的位置, sx前缀表示从图片上截图的区域
@@ -60,7 +62,6 @@ public class Render{
     }
 
     public void DrawFixedBG(Image img){
-
         g.drawImage(img, 0, 0, width, height, null);
     }
 
@@ -69,6 +70,9 @@ public class Render{
         Vector size = Game.mouse.size;
         g.drawOval((int)(pos.x - size.x/2), (int)(pos.y - size.x/2), (int)size.x, (int)size.x);
         g.fillOval((int)(pos.x - size.y/2), (int)(pos.y - size.y/2), (int)size.y, (int)size.y);
+        g.setColor(new Color(255, 255, 255, 125));
+        g.fillOval((int)(pos.x - size.x/2), (int)(pos.y - size.x/2), (int)size.x, (int)size.x);
+        g.setColor(Color.white);
         if (Game.DEBUG) g.drawString("x: " + (int)pos.x + " y:" + (int)pos.y, 50, 50);
         if (Game.DEBUG) g.drawString("relative rotation: " + Game.player.mouse_dir, 50, 100);
     }
@@ -106,9 +110,6 @@ public class Render{
                 }
 
                 else{
-                    // if(Game.collisionManager.collide(Game.collisionManager.collidable.get(0), Game.collisionManager.collidable.get(1))){
-                    //     g.setColor(Color.RED);
-                    // }
                     g.drawRect((int)(c.frame_pos.x - c.size.x/2), (int)(c.frame_pos.y - c.size.y/2), (int)(c.size.x), (int)(c.size.y));
 
                 }
@@ -169,6 +170,13 @@ public class Render{
         int image_height = player_image.getHeight(null);
         int image_width = player_image.getWidth(null);
         g.drawImage(player_image, (int) (frame_pos.x -  img_center.x), (int) (frame_pos.y - img_center.y), (int)image_width, (int)image_height, null);
+        if (Game.player.hp == 2){
+            g.setColor(Color.cyan);
+            g.drawOval((int) Math.round(frame_pos.x - Game.player.size.x), (int) Math.round(frame_pos.y - Game.player.size.y/2 * 1.5), (int)Game.player.size.x * 2, (int)(Game.player.size.y * 1.5));
+            g.setColor(new Color(0, 255, 255, 50));
+            g.fillOval((int) Math.round(frame_pos.x - Game.player.size.x), (int) Math.round(frame_pos.y - Game.player.size.y/2 * 1.5), (int)Game.player.size.x * 2, (int)(Game.player.size.y * 1.5));
+            g.setColor(Color.white);
+        }
     }
 
     public BufferedImage rotate_image(BufferedImage img, int angle){
@@ -287,25 +295,39 @@ public class Render{
         g.drawImage(gun_img, (int)(frame_pos.x - gun_center.x), (int)(frame_pos.y - gun_center.y), gun_img.getWidth(null), gun_img.getHeight(null), null);
     }
 
+    //Render the bullet
     public void render_bullet(Bullet b){
         int angle = b.dir;
         BufferedImage bullet = Game.bullet_img;
+        if (b.owner.equals("killing_strip")){
+            bullet = Game.killing_strip;
+        }
         bullet = rotate_image(bullet, 360 - angle);
         Image bullet_img = scale(bullet, 3);
         Vector frame_pos = b.pos.to_frame(Game.camera);
         g.drawImage(bullet_img, (int)Math.round(frame_pos.x - bullet_img.getWidth(null)/2), (int)Math.round(frame_pos.y - bullet_img.getHeight(null)/2), bullet_img.getWidth(null), bullet_img.getHeight(null), null);
     }
 
+    //Render the background
     public void render_background(){
-        String type = Game.level_background.get(Game.current_level);
+        int current_level = Game.current_level;
+        if (current_level > 4){
+            current_level = 4;
+        }
+        String type = Game.level_background.get(current_level);
         if (type.equals("moveable")){
-            DrawBackground(Game.moveable_background);
+            for (int i = 0; i < Game.moveable_background.size(); i++){
+                Image img = Game.moveable_background.get(i);
+                DrawBackground(img, 0.15 * i);
+            }
         }
         else if (type.equals("fixed")){
             DrawFixedBG(Game.static_background);
         }
     }
 
+
+    //Render the UI page for the pause screen
     public void render_pause_screen(){
         g.setColor(new Color(0, 0, 255, 125));
         g.fillRect(0, 0, width, height);
@@ -314,14 +336,13 @@ public class Render{
         g.drawString("PAUSE", (int)(width/2 - (200/Game.SCALE)), (int)(height/2 - (200/Game.SCALE)));
         g.setFont(new Font("Arial", Font.BOLD, 50));
         g.drawString("Resume", (int)(width/2 - (125/Game.SCALE)), (int)(height/2 + 25/Game.SCALE));
-        g.drawString("Exit the game", (int)(width/2 - (200/Game.SCALE)), (int)(height/2 + (175/Game.SCALE)));
+        g.drawString("Restart Level", (int)(width/2 - (200/Game.SCALE)), (int)(height/2 + (175/Game.SCALE)));
+        g.drawString("Exit the game", (int)(width/2 - (200/Game.SCALE)), (int)(height/2 + (325/Game.SCALE)));
         g.setFont(new Font("Arial", Font.PLAIN, 12));
     }
 
     public void update(){
-        if (!Game.DEBUG){
-            DrawBackground(Game.background.get(Game.current_level));
-        }
+        g.setColor(Color.white);
         update_frame_pos();
         render_background();
         render_tilemap();
@@ -332,7 +353,6 @@ public class Render{
             g.drawString("Pos y: ", 300, 140);
             g.drawString(Double.toString(Game.player.pos.y), 300, 160);
         }
-        render_mouse();
         render_player(Game.player.state);
         render_player_attck(Game.player.attacking);
         for (Enemy e : Game.enemies){
@@ -347,5 +367,7 @@ public class Render{
         for (Bullet b : Game.bullets){
             render_bullet(b);
         }
+
+        render_mouse();
     }
 }

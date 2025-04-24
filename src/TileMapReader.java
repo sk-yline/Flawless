@@ -8,22 +8,41 @@ import java.util.Arrays;
 import java.util.HashMap;
 import javax.imageio.ImageIO;
 
+// TileMapReader parses TMX files exported from Tiled Map Editor
+// Loads and processes tileset images, tile layers, and collision objects
 public class TileMapReader{
+    // Base path for locating files
     private final String basepath = System.getProperty("user.dir");
-    //Tile set in regular size: i.e 96 x 96 pixels
+    
+    // Tileset images loaded from the TMX file
     public ArrayList<Image> tileset = new ArrayList<>();
+    
+    // Tile layers data (2D arrays of tile IDs)
     public ArrayList<int[][]> tilemap = new ArrayList<>();
+    
+    // Collision objects defined in the TMX file
     public ArrayList<CollisionBox> collider = new ArrayList<>();
+    
+    // Scaling factor for tiles
     public double sc;
+    
+    // Grid size for scaling tile dimensions
     public int grid_scale;
+    
+    // Type of the current TMX element being processed
     public String type;
+    
+    // Height and width of the tilemap in tiles
     public int h = 0;
     public int w = 0;
+    
+    // Constructor initializes scaling values based on game settings
     public TileMapReader(){
         this.sc = Game.SCALE;
         this.grid_scale = Math.round((float)(Game.GRIDSIZE / (16/Game.SCALE)));
     }
 
+    // Loads an image from the specified path
     public BufferedImage loadimg(String path){
         BufferedImage img = null;
         
@@ -36,12 +55,15 @@ public class TileMapReader{
         return img;
     }
 
+    // Scales an image based on the game's scaling factor
     public Image scale(BufferedImage img, double s){
         int img_width = (int)Math.round(img.getWidth() * s / sc);
         int img_height = (int)Math.round(img.getHeight() * s / sc);
         return img.getScaledInstance(img_width, img_height, Image.SCALE_DEFAULT);
     }
     
+    // Parses a TMX file line into key-value pairs
+    // Example: <tileset name="tiles" tilewidth="16" tileheight="16"> becomes {name="tiles", tilewidth="16", tileheight="16"}
     public HashMap<String, String> decode_line(String str, boolean replace_slah){
         str = str.replace("<", "").replace(">", "").replace("\"", "");
         if (replace_slah){
@@ -58,6 +80,8 @@ public class TileMapReader{
         return mp;
     }
 
+    // Extracts the resource path from a full file path
+    // Example: "C:/Projects/Game/resource/tiles.png" becomes "\resource\tiles.png"
     public String extract_sorce(String source){
         String[] path = source.split("/");
         int ind = 0;
@@ -73,6 +97,8 @@ public class TileMapReader{
         return new_source;
     }
 
+    // Reads and processes a tileset file
+    // Loads the tileset image and splits it into individual tiles
     public void read_tileset(String path){
         try {
             BufferedReader br = new BufferedReader(new FileReader(path));
@@ -85,6 +111,8 @@ public class TileMapReader{
             int column = Integer.parseInt(tileset_info.get("columns"));
             int row = Integer.parseInt(tileset_info.get("tilecount"))/column;
             BufferedImage ts = loadimg(extract_sorce(img_info.get("source")));
+            
+            // Split the tileset image into individual tiles
             for (int i = 0; i<row; i++){
                 for (int j = 0; j<column; j++){
                     BufferedImage croped_img = ts.getSubimage(j*16, i*16, 16, 16);
@@ -97,6 +125,8 @@ public class TileMapReader{
         }
     }
 
+    // Reads and processes a TMX tilemap file
+    // Parses tileset references, tile layers, and object layers
     public void read_tilemap(String path){
         try {
             BufferedReader br = new BufferedReader(new FileReader(basepath + path));
@@ -105,13 +135,17 @@ public class TileMapReader{
             br.readLine();
             line = br.readLine().trim();
             HashMap<String, String> info = decode_line(line, true);
+            
+            // Process tileset references
             while (type.equals("tileset")){
                 read_tileset(basepath + "\\data\\"+ info.get("source"));
                 line = br.readLine().trim();
                 info = decode_line(line, true);
             }
 
+            // Process map data until end of file
             while(!line.equals("</map>")){
+                // Process tile layers (visual tiles)
                 if (type.equals("layer")){
                     br.readLine();
                     h = Integer.parseInt(info.get("height"));
@@ -128,6 +162,7 @@ public class TileMapReader{
                     br.readLine();
                 }
 
+                // Process object layers (collision boxes, spawn points, etc.)
                 if (type.equals("objectgroup")){
                     String name = info.get("name");
                     line = br.readLine().trim();

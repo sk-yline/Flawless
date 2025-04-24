@@ -1,4 +1,3 @@
-
 import java.awt.event.KeyEvent;
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
@@ -38,7 +37,7 @@ public class Player{
         Game.collisionManager.collidable.get(Game.collisionManager.get_box("player_atk")).enable = false;
     }
 
-
+    //Update Collision Box's position and frame position
     public void update_collision(){
         int player_ind = Game.collisionManager.get_box("player");
         Game.collisionManager.collidable.get(player_ind).pos = pos;
@@ -60,16 +59,14 @@ public class Player{
     private double max_jump_duration = 0.15;
     private double jump_duration = 0;
 
+    //Check If the player is on the ground
     public boolean is_grounded(){
         int player_ind = Game.collisionManager.get_box("player");
         Vector col_pos = Game.collisionManager.collidable.get(player_ind).pos;
         Vector col_size = Game.collisionManager.collidable.get(player_ind).size;
+        //Rays for checking, if the rays intersect with any solids, there is a ground below player
         Line2D line_left = new Line2D.Double(new Point2D.Double(col_pos.x - col_size.x/2, col_pos.y), new Point2D.Double(col_pos.x - col_size.x/2, col_pos.y + col_size.y/2 + Game.GRIDSIZE * 0.75));
         Line2D line_right = new Line2D.Double(new Point2D.Double(col_pos.x + col_size.x/2, col_pos.y), new Point2D.Double(col_pos.x + col_size.x/2, col_pos.y + col_size.y/2 + Game.GRIDSIZE * 0.75));
-        // if (Game.DEBUG){
-        //     Game.rend.line_to_frame(line_left);
-        //     Game.rend.line_to_frame(line_right);
-        // }
         for (CollisionBox c : Game.collisionManager.collidable){
             if (c.type.equals("wall") || (c.type.equals("platform") && c.enable)){
                 Rectangle2D rect = c.get_rect();
@@ -109,21 +106,19 @@ public class Player{
     }
 
     int wall_dir = 0;
+    //Check if player is on the wall 
     public boolean on_wall(){
+        if (is_grounded()){
+            return false;
+        }
         int player_ind = Game.collisionManager.get_box("player");
         Vector col_pos = Game.collisionManager.collidable.get(player_ind).pos;
         Vector col_size = Game.collisionManager.collidable.get(player_ind).size;
+        //Rays for checking, if the rays intersect with any solids, there is a wall beside player
         Line2D line_left_up = new Line2D.Double(new Point2D.Double(col_pos.x - col_size.x/2 - Game.GRIDSIZE * 0.5, col_pos.y - col_size.y/2), new Point2D.Double(col_pos.x, col_pos.y - col_size.y/2));
         Line2D line_left_down = new Line2D.Double(new Point2D.Double(col_pos.x - col_size.x/2 - Game.GRIDSIZE * 0.5, col_pos.y + col_size.y/2), new Point2D.Double(col_pos.x, col_pos.y + col_size.y/2));
         Line2D line_right_up = new Line2D.Double(new Point2D.Double(col_pos.x + col_size.x/2 + Game.GRIDSIZE * 0.5, col_pos.y - col_size.y/2), new Point2D.Double(col_pos.x, col_pos.y - col_size.y/2));
         Line2D line_right_down = new Line2D.Double(new Point2D.Double(col_pos.x + col_size.x/2 + Game.GRIDSIZE * 0.5, col_pos.y + col_size.y/2), new Point2D.Double(col_pos.x, col_pos.y + col_size.y/2));
-
-        // if (Game.DEBUG){
-        //     Game.rend.line_to_frame(line_left_up);
-        //     Game.rend.line_to_frame(line_left_down);
-        //     Game.rend.line_to_frame(line_right_up);
-        //     Game.rend.line_to_frame(line_right_down);
-        // }
 
         for (CollisionBox c : Game.collisionManager.collidable){
             if (c.type.equals("wall") || (c.type.equals("platform") && c.enable)){
@@ -147,6 +142,7 @@ public class Player{
     public double double_jump_duration = 0;
     public double double_jump_acc = -1000/Game.SCALE;
     public double initial_double_jump_velocity = -600/Game.SCALE;
+    //Double Jump
     public void double_jump(double delta){
         if (velocity_y != 0){
             velocity_y = initial_double_jump_velocity;
@@ -154,11 +150,12 @@ public class Player{
         velocity_y += double_jump_acc * delta;
     }
 
-    public double wall_jump_y_acc = -20000 /Game.SCALE;
+    public double wall_jump_y_acc = -30000 /Game.SCALE;
     public double wall_jump_x_acc = 20000/Game.SCALE;
     public double wall_jump_duration = 0;
     private boolean wall_j = false;
 
+    //Wall Jump
     public void wall_jump(double delta){
         if (!wall_j){
             wall_j = true;
@@ -176,6 +173,7 @@ public class Player{
     private boolean holding_jump = false;
     public double coyote_time = 0.2;
 
+    //Function that performs the jump action, different jumping will be selected according to the current condition
     public void jump(double delta)
     {
         if (jump_duration <= 0){
@@ -212,6 +210,8 @@ public class Player{
         }
     }
 
+    //Decide the final position that player should be moved to
+
     public void move(double delta){
         update_collision();
 
@@ -244,7 +244,8 @@ public class Player{
             move_y = false;
         }
         else if (new_y_collision.pos.y - new_y_collision.size.y/2 >= Game.level.height * Game.GRIDSIZE + 5){
-            died = true;
+            //Fall to death
+            hp = 0;
         }
 
         if (move_y){
@@ -252,6 +253,7 @@ public class Player{
             pos.y = (int) pos.y;
         }
         else{
+            //Set y_velocity to 0 if there is a ground below the player
             if (is_grounded() && !holding_jump){
                 for (CollisionBox c : Game.collisionManager.collidable){
                     if (c.type.equals("wall") || (c.type.equals("platform") && c.enable)){
@@ -292,6 +294,13 @@ public class Player{
     public int attack_dir = -1;
     double attack_vel = 1400/Game.SCALE;
 
+    /**
+     * Handles player attack mechanics
+     * - Sets attack direction based on mouse position
+     * - Applies velocity based on angle
+     * - Detects collisions with enemies and interactive objects
+     * - Manages attack state and cooldown
+     */
     public void attack(double delta){
         if (attack_dir == -1){
             attack_dir = mouse_dir;
@@ -332,6 +341,15 @@ public class Player{
                 can_dash = true;
                 Game.hit_pause = Game.hit_pause_time;
                 Game.sound.get("impact").play();
+                Vector edge = e.pos.minus(pos);
+                int strip_dir = 0;
+                if (edge.y <= 0){
+                    strip_dir = Math.round((float)(Math.acos(edge.dot(new Vector(1, 0)) / edge.magnitude()) * 180 / Math.PI));
+                }
+                else{
+                    strip_dir = Math.round((float)(Math.acos(edge.dot(new Vector(-1, 0)) / edge.magnitude()) * 180 / Math.PI)) + 180;
+                }
+                Game.bullets.add(new Bullet(new Vector(pos.x, pos.y), strip_dir, "killing_strip"));
             }
         }
 
@@ -355,6 +373,7 @@ public class Player{
     public int attack_frame = 0;
     public final double hit_duration = 1;
     public double hit_time = 0;
+    //Change the state of animation according to the current input/condition
     public void change_state(String s){
         int max_frame = Game.player_frame.get(s);
         if (!s.equals("Hit") && hit_time > 0.6){
@@ -456,10 +475,16 @@ public class Player{
     double walk_sound_interval = 0;
     final double refill_dash_cd = 0.5;
     double dash_refill_timer = 0;
+    boolean played_death = false;
+    //Update player's position and state
     public void update_postion(double delta){
         if (hp == 0){
             Game.collisionManager.collidable.get(Game.collisionManager.get_box("player")).enable = false;
             change_state("Death");
+            if (!played_death)  {
+                Game.sound.get("death").play();
+                played_death = true;
+            }
             frame_pause_timer -= delta;
             if (frame_pause_timer < 0){
                 frame_pause_timer = 0;

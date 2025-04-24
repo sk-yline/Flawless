@@ -60,6 +60,7 @@ public class Enemy {
                 return i;
             }
         }
+        System.out.println("can't find attack box!");
         return -1;
     }
     
@@ -72,7 +73,7 @@ public class Enemy {
     }
 
     public boolean see_player(){
-        CollisionBox observer = new CollisionBox(pos, new Vector(size.x * 30, size.x * 26), 0, "see");
+        CollisionBox observer = new CollisionBox(pos, new Vector(size.x * 40, size.x * 40), 0, "see");
         observer.frame_pos = pos.to_frame(Game.camera);
         // Game.rend.g.setColor(Color.white);
         for (CollisionBox c : Game.collisionManager.collidable){
@@ -101,7 +102,14 @@ public class Enemy {
     }
 
     public void attack(double delta){
-        pos.x += direction * 200/Game.SCALE * delta;
+        double dx = direction * 200/Game.SCALE * delta;
+        if (pos.x + dx < border_left){
+            dx = border_left - pos.x;
+        }
+        if (pos.x + dx > border_right){
+            dx = border_right - pos.x;
+        }
+        pos.x += dx;
         update_pos();
         attackbox.pos = new Vector(pos.x + direction * 80/Game.SCALE, pos.y);
         attackbox.frame_pos = attackbox.pos.to_frame(Game.camera);
@@ -119,6 +127,7 @@ public class Enemy {
                         pos.x = border_right;
                     }
                     Game.collisionManager.collidable.get(find_ind_atk()).enable = false;
+                    attackbox.enable = false;
                     Game.player.attack_duration = 0;
                     c.enable = false;
                     check_player = false;
@@ -143,6 +152,7 @@ public class Enemy {
                             Game.hit_pause = 1000;
                         }
                         Game.collisionManager.collidable.get(find_ind_atk()).enable = false;
+                        attackbox.enable = false;
                         Game.player.attack_duration = 0;
                     }
                 }
@@ -171,7 +181,8 @@ public class Enemy {
     public void change_state(String s){
         int max_frame = Game.enemy_1_frame.get(s);
         if (!state.equals(s)){
-            frame = 0;
+            frame = -1;
+            frame_pause_timer = 0;
         }
         state = s;
         if (!died){
@@ -194,9 +205,13 @@ public class Enemy {
 
         if (frame_pause_timer == 0){
             if (state.equals("Attack")){
-                if (attack_duration >= 0.2){
+                if (attack_duration >= 0.4){
+                    frame = 1;
+                    frame_pause_timer = 0.9;
+                }
+                else if (attack_duration >= 0.2){
                     frame = 2;
-                    frame_pause_timer = frame_pause;
+                    frame_pause_timer = 0.9;
                 }
                 else{
                     frame++;
@@ -205,6 +220,9 @@ public class Enemy {
                     }
                     frame_pause_timer = frame_pause;
                 }
+
+                System.out.println(frame);
+                System.out.println(attackbox.enable);
             }
             if (state.equals("Death")){
                 frame++;
@@ -263,7 +281,7 @@ public class Enemy {
                     if (!attacking && attack_cd == 0){
                         Game.collisionManager.collidable.get(find_ind_atk()).enable = true;
                         attackbox.enable = true;
-                        attack_duration = 0.4;
+                        attack_duration = 0.6;
                         attacking = true;
                         change_state("Attack");
                         attack(delta);
@@ -271,6 +289,10 @@ public class Enemy {
                     if (attacking){
                         change_state("Attack");
                         attack(delta);
+                    }
+
+                    if (attack_cd > 0){
+                        change_state("Idle");
                     }
                 }
                 else{
@@ -324,6 +346,22 @@ public class Enemy {
             change_state("Idle");
         }
     }
+
+    public boolean can_shoot(){
+        Vector enemy_pos = new Vector(pos.x, pos.y);
+        Vector player_pos = new Vector(Game.player.pos.x, Game.player.pos.y);
+        Line2D shoot_line = new Line2D.Double(new Point2D.Double(enemy_pos.x, enemy_pos.y), new Point2D.Double(player_pos.x, player_pos.y));
+        for (CollisionBox c : Game.collisionManager.collidable){
+            if (c.type.equals("wall")){
+                Rectangle2D rect = c.get_rect();
+                if (shoot_line.intersects(rect)){
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
  
 
     double bullet_cool = 0;
@@ -335,11 +373,14 @@ public class Enemy {
     
     public void update_2(double delta){
        if (bullet_cool == 0 && pre_cast == 0){
-            Random rnd = new Random();
-            int bullet_dir = find_angle();
-            int drift = rnd.nextInt(7) - 3;
-            Game.bullets.add(new Bullet(new Vector(pos.x, pos.y), bullet_dir + drift, "enemy"));
-            bullet_cool = bullet_cooldown;
+            if (can_shoot()){
+                Random rnd = new Random();
+                int bullet_dir = find_angle();
+                int drift = rnd.nextInt(7) - 3;
+                Game.bullets.add(new Bullet(new Vector(pos.x, pos.y), bullet_dir + drift, "enemy"));
+                Game.sound.get("gun").play();
+                bullet_cool = bullet_cooldown;
+            }
        }
        player_dir = find_angle();
     }
